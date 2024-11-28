@@ -16,8 +16,9 @@ use crate::{
     tree::inner::{SealedMemtables, TreeId},
     Config,
 };
+use parking_lot::{RwLock, RwLockWriteGuard};
 use std::{
-    sync::{atomic::AtomicU64, Arc, RwLock, RwLockWriteGuard},
+    sync::{atomic::AtomicU64, Arc},
     time::Instant,
 };
 
@@ -68,7 +69,7 @@ impl Options {
 /// This will block until the compactor is fully finished.
 pub fn do_compaction(opts: &Options) -> crate::Result<()> {
     log::trace!("compactor: acquiring levels manifest lock");
-    let mut original_levels = opts.levels.write().expect("lock is poisoned");
+    let mut original_levels = opts.levels.write();
 
     log::trace!("compactor: consulting compaction strategy");
     let choice = opts.strategy.choose(&original_levels, &opts.config);
@@ -266,12 +267,12 @@ fn merge_segments(
 
     // NOTE: Mind lock order L -> M -> S
     log::trace!("compactor: acquiring levels manifest write lock");
-    let mut original_levels = opts.levels.write().expect("lock is poisoned");
+    let mut original_levels = opts.levels.write();
 
     // IMPORTANT: Write lock memtable(s), otherwise segments may get deleted while a range read is happening
     // NOTE: Mind lock order L -> M -> S
     log::trace!("compactor: acquiring sealed memtables write lock");
-    let sealed_memtables_guard = opts.sealed_memtables.write().expect("lock is poisoned");
+    let sealed_memtables_guard = opts.sealed_memtables.write();
 
     let swap_result = original_levels.atomic_swap(|recipe| {
         for segment in created_segments.iter().cloned() {
@@ -348,7 +349,7 @@ fn drop_segments(
 
     // IMPORTANT: Write lock memtable, otherwise segments may get deleted while a range read is happening
     log::trace!("compaction: acquiring sealed memtables write lock");
-    let memtable_lock = opts.sealed_memtables.write().expect("lock is poisoned");
+    let memtable_lock = opts.sealed_memtables.write();
 
     // IMPORTANT: Write the segment with the removed segments first
     // Otherwise the folder is deleted, but the segment is still referenced!

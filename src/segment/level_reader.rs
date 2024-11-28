@@ -139,13 +139,7 @@ mod tests {
             tree.flush_active_memtable(0)?;
         }
 
-        let segments = tree
-            .levels
-            .read()
-            .expect("lock is poisoned")
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
+        let segments = tree.levels.read().iter().cloned().collect::<Vec<_>>();
 
         let level = Arc::new(Level {
             segments,

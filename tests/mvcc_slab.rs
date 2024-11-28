@@ -21,7 +21,7 @@ fn segment_reader_mvcc_slab() -> lsm_tree::Result<()> {
 
     tree.flush_active_memtable(0)?;
 
-    let level_manifest = tree.levels.read().expect("lock is poisoned");
+    let level_manifest = tree.levels.read();
 
     let segment = level_manifest
         .levels
@@ -57,7 +57,7 @@ fn segment_reader_mvcc_slab_blob() -> lsm_tree::Result<()> {
 
     tree.flush_active_memtable(0)?;
 
-    let level_manifest = tree.index.levels.read().expect("lock is poisoned");
+    let level_manifest = tree.index.levels.read();
 
     let segment = level_manifest
         .levels

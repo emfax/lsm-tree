@@ -473,16 +473,11 @@ mod tests {
 
         // NOTE: Purposefully change level manifest to have invalid path
         // to force an I/O error
-        tree.levels.write().expect("lock is poisoned").path = "/invaliiid/asd".into();
+        tree.levels.write().path = "/invaliiid/asd".into();
 
         assert!(tree.major_compact(u64::MAX, 4).is_err());
 
-        assert!(tree
-            .levels
-            .read()
-            .expect("lock is poisoned")
-            .hidden_set
-            .is_empty());
+        assert!(tree.levels.read().hidden_set.is_empty());
 
         assert_eq!(segment_count_before_major_compact, tree.segment_count());
 

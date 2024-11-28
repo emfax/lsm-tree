@@ -9,11 +9,11 @@ use double_ended_peekable::{DoubleEndedPeekable, DoubleEndedPeekableExt};
 ///
 /// This iterator is used for read operations.
 #[allow(clippy::module_name_repetitions)]
-pub struct MvccStream<I: DoubleEndedIterator<Item = crate::Result<InternalValue>>> {
+pub struct MvccStream<I: DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send> {
     inner: DoubleEndedPeekable<I>,
 }
 
-impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>>> MvccStream<I> {
+impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send> MvccStream<I> {
     /// Initializes a new merge iterator
     #[must_use]
     pub fn new(iter: I) -> Self {
@@ -49,7 +49,9 @@ impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>>> MvccStream<I> 
     }
 }
 
-impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>>> Iterator for MvccStream<I> {
+impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send> Iterator
+    for MvccStream<I>
+{
     type Item = crate::Result<InternalValue>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -62,7 +64,7 @@ impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>>> Iterator for M
     }
 }
 
-impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>>> DoubleEndedIterator
+impl<I: DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send> DoubleEndedIterator
     for MvccStream<I>
 {
     fn next_back(&mut self) -> Option<Self::Item> {

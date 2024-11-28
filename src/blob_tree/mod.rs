@@ -20,10 +20,11 @@ use crate::{
 use compression::MyCompressor;
 use gc::{reader::GcReader, writer::GcWriter};
 use index::IndexTree;
+use parking_lot::RwLockWriteGuard;
 use std::{
     io::Cursor,
     ops::{RangeBounds, RangeFull},
-    sync::{atomic::AtomicUsize, Arc, RwLockWriteGuard},
+    sync::{atomic::AtomicUsize, Arc},
 };
 use value::MaybeInlineValue;
 use value_log::ValueLog;
@@ -304,7 +305,7 @@ impl AbstractTree for BlobTree {
         )
     }
 
-    fn keys(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<UserKey>> + 'static> {
+    fn keys(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<UserKey>> + Send + 'static> {
         self.index.keys()
     }
 
@@ -443,7 +444,7 @@ impl AbstractTree for BlobTree {
         Ok(())
     }
 
-    fn lock_active_memtable(&self) -> std::sync::RwLockWriteGuard<'_, Memtable> {
+    fn lock_active_memtable(&self) -> RwLockWriteGuard<'_, Memtable> {
         self.index.lock_active_memtable()
     }
 
@@ -577,7 +578,7 @@ impl AbstractTree for BlobTree {
     fn range<K: AsRef<[u8]>, R: RangeBounds<K>>(
         &self,
         range: R,
-    ) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + 'static> {
+    ) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + Send + 'static> {
         let vlog = self.blobs.clone();
         Box::new(
             self.index

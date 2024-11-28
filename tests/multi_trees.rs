@@ -27,12 +27,7 @@ fn tree_multi_segment_ids() -> lsm_tree::Result<()> {
             .load(std::sync::atomic::Ordering::Relaxed)
     );
 
-    assert_eq!(
-        0,
-        tree0.levels.read().expect("lock is poisoned").levels[0].segments[0]
-            .metadata
-            .id
-    );
+    assert_eq!(0, tree0.levels.read().levels[0].segments[0].metadata.id);
 
     let tree1 = Config::new(&folder1).open()?;
     assert_eq!(tree1.id, 1);
@@ -56,12 +51,7 @@ fn tree_multi_segment_ids() -> lsm_tree::Result<()> {
             .load(std::sync::atomic::Ordering::Relaxed)
     );
 
-    assert_eq!(
-        0,
-        tree1.levels.read().expect("lock is poisoned").levels[0].segments[0]
-            .metadata
-            .id
-    );
+    assert_eq!(0, tree1.levels.read().levels[0].segments[0].metadata.id);
 
     Ok(())
 }

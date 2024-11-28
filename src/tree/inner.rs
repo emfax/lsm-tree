@@ -6,7 +6,8 @@ use crate::{
     config::Config, file::LEVELS_MANIFEST_FILE, level_manifest::LevelManifest, memtable::Memtable,
     segment::meta::SegmentId, stop_signal::StopSignal,
 };
-use std::sync::{atomic::AtomicU64, Arc, RwLock};
+use parking_lot::RwLock;
+use std::sync::{atomic::AtomicU64, Arc};
 
 /// Unique tree ID
 ///

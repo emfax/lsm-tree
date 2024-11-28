@@ -394,7 +394,6 @@ mod tests {
         assert!(
             tree.levels
                 .read()
-                .expect("lock is poisoned")
                 .levels
                 .first()
                 .expect("should exist")
@@ -419,7 +418,6 @@ mod tests {
         let first = tree
             .levels
             .read()
-            .expect("lock is poisoned")
             .levels
             .first()
             .expect("should exist")
@@ -452,7 +450,6 @@ mod tests {
             !tree
                 .levels
                 .read()
-                .expect("lock is poisoned")
                 .levels
                 .first()
                 .expect("should exist")

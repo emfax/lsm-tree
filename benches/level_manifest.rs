@@ -17,7 +17,7 @@ fn iterate_segments(c: &mut Criterion) {
                 tree.flush_active_memtable(0).unwrap();
             }
 
-            let levels = tree.levels.read().unwrap();
+            let levels = tree.levels.read();
 
             b.iter(|| {
                 assert_eq!(levels.iter().count(), segment_count as usize);
@@ -46,7 +46,7 @@ fn find_segment(c: &mut Criterion) {
 
                 let key = (segment_count / 2).to_be_bytes();
 
-                let levels = tree.levels.read().unwrap();
+                let levels = tree.levels.read();
 
                 b.iter(|| {
                     levels
@@ -74,7 +74,7 @@ fn find_segment(c: &mut Criterion) {
 
                 let key = (segment_count / 2).to_be_bytes();
 
-                let levels = tree.levels.read().unwrap();
+                let levels = tree.levels.read();
 
                 b.iter(|| {
                     levels

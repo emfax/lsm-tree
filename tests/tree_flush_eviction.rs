@@ -85,7 +85,6 @@ fn tree_flush_eviction_4() -> lsm_tree::Result<()> {
         1,
         tree.levels
             .read()
-            .unwrap()
             .levels
             .first()
             .unwrap()
@@ -102,7 +101,6 @@ fn tree_flush_eviction_4() -> lsm_tree::Result<()> {
         0,
         tree.levels
             .read()
-            .unwrap()
             .levels
             .last()
             .unwrap()

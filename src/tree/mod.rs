@@ -22,11 +22,12 @@ use crate::{
     AbstractTree, BlockCache, KvPair, SegmentId, SeqNo, Snapshot, UserKey, UserValue, ValueType,
 };
 use inner::{MemtableId, SealedMemtables, TreeId, TreeInner};
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{
     io::Cursor,
     ops::RangeBounds,
     path::Path,
-    sync::{atomic::AtomicU64, Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{atomic::AtomicU64, Arc},
 };
 
 fn ignore_tombstone_value(item: InternalValue) -> Option<InternalValue> {
@@ -73,16 +74,12 @@ impl AbstractTree for Tree {
     }
 
     fn sealed_memtable_count(&self) -> usize {
-        self.sealed_memtables
-            .read()
-            .expect("lock is poisoned")
-            .len()
+        self.sealed_memtables.read().len()
     }
 
     fn is_first_level_disjoint(&self) -> bool {
         self.levels
             .read()
-            .expect("lock is poisoned")
             .levels
             .first()
             .expect("first level should exist")
@@ -99,7 +96,7 @@ impl AbstractTree for Tree {
 
         let mut sum = 0;
 
-        let level_manifest = self.levels.read().expect("lock is poisoned");
+        let level_manifest = self.levels.read();
 
         for level in &level_manifest.levels {
             for segment in &level.segments {
@@ -132,7 +129,7 @@ impl AbstractTree for Tree {
         )
     }
 
-    fn keys(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<UserKey>> + 'static> {
+    fn keys(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<UserKey>> + Send + 'static> {
         Box::new(self.create_iter(None, None).map(|x| x.map(|(k, _)| k)))
     }
 
@@ -191,11 +188,11 @@ impl AbstractTree for Tree {
     fn register_segments(&self, segments: &[Segment]) -> crate::Result<()> {
         // NOTE: Mind lock order L -> M -> S
         log::trace!("flush: acquiring levels manifest write lock");
-        let mut original_levels = self.levels.write().expect("lock is poisoned");
+        let mut original_levels = self.levels.write();
 
         // NOTE: Mind lock order L -> M -> S
         log::trace!("flush: acquiring sealed memtables write lock");
-        let mut sealed_memtables = self.sealed_memtables.write().expect("lock is poisoned");
+        let mut sealed_memtables = self.sealed_memtables.write();
 
         original_levels.atomic_swap(|recipe| {
             for segment in segments.iter().cloned() {
@@ -215,16 +212,16 @@ impl AbstractTree for Tree {
     }
 
     fn lock_active_memtable(&self) -> RwLockWriteGuard<'_, Memtable> {
-        self.active_memtable.write().expect("lock is poisoned")
+        self.active_memtable.write()
     }
 
     fn set_active_memtable(&self, memtable: Memtable) {
-        let mut memtable_lock = self.active_memtable.write().expect("lock is poisoned");
+        let mut memtable_lock = self.active_memtable.write();
         *memtable_lock = memtable;
     }
 
     fn add_sealed_memtable(&self, id: MemtableId, memtable: Arc<Memtable>) {
-        let mut memtable_lock = self.sealed_memtables.write().expect("lock is poisoned");
+        let mut memtable_lock = self.sealed_memtables.write();
         memtable_lock.add(id, memtable);
     }
 
@@ -255,11 +252,7 @@ impl AbstractTree for Tree {
     fn active_memtable_size(&self) -> u32 {
         use std::sync::atomic::Ordering::Acquire;
 
-        self.active_memtable
-            .read()
-            .expect("lock is poisoned")
-            .approximate_size
-            .load(Acquire)
+        self.active_memtable.read().approximate_size.load(Acquire)
     }
 
     fn tree_type(&self) -> crate::TreeType {
@@ -289,22 +282,19 @@ impl AbstractTree for Tree {
     }
 
     fn segment_count(&self) -> usize {
-        self.levels.read().expect("lock is poisoned").len()
+        self.levels.read().len()
     }
 
     fn first_level_segment_count(&self) -> usize {
-        self.levels
-            .read()
-            .expect("lock is poisoned")
-            .first_level_segment_count()
+        self.levels.read().first_level_segment_count()
     }
 
     #[allow(clippy::significant_drop_tightening)]
     fn approximate_len(&self) -> usize {
         // NOTE: Mind lock order L -> M -> S
-        let levels = self.levels.read().expect("lock is poisoned");
-        let memtable = self.active_memtable.read().expect("lock is poisoned");
-        let sealed = self.sealed_memtables.read().expect("lock is poisoned");
+        let levels = self.levels.read();
+        let memtable = self.active_memtable.read();
+        let sealed = self.sealed_memtables.read();
 
         let segments_item_count = levels.iter().map(|x| x.metadata.item_count).sum::<u64>();
         let memtable_count = memtable.len() as u64;
@@ -316,21 +306,16 @@ impl AbstractTree for Tree {
     }
 
     fn disk_space(&self) -> u64 {
-        let levels = self.levels.read().expect("lock is poisoned");
+        let levels = self.levels.read();
         levels.iter().map(|x| x.metadata.file_size).sum()
     }
 
     fn get_highest_memtable_seqno(&self) -> Option<SeqNo> {
-        let active = self
-            .active_memtable
-            .read()
-            .expect("lock is poisoned")
-            .get_highest_seqno();
+        let active = self.active_memtable.read().get_highest_seqno();
 
         let sealed = self
             .sealed_memtables
             .read()
-            .expect("Lock is poisoned")
             .iter()
             .map(|(_, table)| table.get_highest_seqno())
             .max()
@@ -340,7 +325,7 @@ impl AbstractTree for Tree {
     }
 
     fn get_highest_persisted_seqno(&self) -> Option<SeqNo> {
-        let levels = self.levels.read().expect("lock is poisoned");
+        let levels = self.levels.read();
         levels
             .iter()
             .map(super::segment::Segment::get_highest_seqno)
@@ -396,7 +381,7 @@ impl AbstractTree for Tree {
     fn range<K: AsRef<[u8]>, R: RangeBounds<K>>(
         &self,
         range: R,
-    ) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + 'static> {
+    ) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + Send + 'static> {
         Box::new(self.create_range(&range, None, None))
     }
 
@@ -469,7 +454,7 @@ impl Tree {
     }
 
     pub(crate) fn read_lock_active_memtable(&self) -> RwLockReadGuard<'_, Memtable> {
-        self.active_memtable.read().expect("lock is poisoned")
+        self.active_memtable.read()
     }
 
     // TODO: Expose as public function, however:
@@ -571,13 +556,13 @@ impl Tree {
     #[doc(hidden)]
     #[must_use]
     pub fn is_compacting(&self) -> bool {
-        let levels = self.levels.read().expect("lock is poisoned");
+        let levels = self.levels.read();
         levels.is_compacting()
     }
 
     /// Write-locks the sealed memtables for exclusive access
     fn lock_sealed_memtables(&self) -> RwLockWriteGuard<'_, SealedMemtables> {
-        self.sealed_memtables.write().expect("lock is poisoned")
+        self.sealed_memtables.write()
     }
 
     /// Used for [`BlobTree`] lookup
@@ -611,7 +596,7 @@ impl Tree {
         key: K,
         seqno: Option<SeqNo>,
     ) -> Option<InternalValue> {
-        let memtable_lock = self.sealed_memtables.read().expect("lock is poisoned");
+        let memtable_lock = self.sealed_memtables.read();
 
         for (_, memtable) in memtable_lock.iter().rev() {
             if let Some(entry) = memtable.get(&key, seqno) {
@@ -633,7 +618,7 @@ impl Tree {
         #[cfg(feature = "bloom")]
         let key_hash = crate::bloom::BloomFilter::get_hash(key.as_ref());
 
-        let level_manifest = self.levels.read().expect("lock is poisoned");
+        let level_manifest = self.levels.read();
 
         for level in &level_manifest.levels {
             // NOTE: Based on benchmarking, binary search is only worth it with ~4 segments
@@ -695,7 +680,7 @@ impl Tree {
     ) -> crate::Result<Option<InternalValue>> {
         // TODO: consolidate memtable & sealed behind single RwLock
 
-        let memtable_lock = self.active_memtable.read().expect("lock is poisoned");
+        let memtable_lock = self.active_memtable.read();
 
         if let Some(entry) = memtable_lock.get(&key, seqno) {
             if evict_tombstone {
@@ -733,7 +718,7 @@ impl Tree {
         range: &'a R,
         seqno: Option<SeqNo>,
         ephemeral: Option<Arc<Memtable>>,
-    ) -> impl DoubleEndedIterator<Item = crate::Result<InternalValue>> + 'static {
+    ) -> impl DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send + 'static {
         use std::ops::Bound::{self, Excluded, Included, Unbounded};
 
         let lo: Bound<UserKey> = match range.start_bound() {
@@ -751,14 +736,11 @@ impl Tree {
         let bounds: (Bound<UserKey>, Bound<UserKey>) = (lo, hi);
 
         // NOTE: Mind lock order L -> M -> S
-        let level_manifest_lock =
-            guardian::ArcRwLockReadGuardian::take(self.levels.clone()).expect("lock is poisoned");
+        let level_manifest_lock = self.levels.read_arc();
 
-        let active = guardian::ArcRwLockReadGuardian::take(self.active_memtable.clone())
-            .expect("lock is poisoned");
+        let active = self.active_memtable.read_arc();
 
-        let sealed = guardian::ArcRwLockReadGuardian::take(self.sealed_memtables.clone())
-            .expect("lock is poisoned");
+        let sealed = self.sealed_memtables.read_arc();
 
         TreeIter::create_range(
             MemtableLockGuard {
@@ -778,7 +760,7 @@ impl Tree {
         range: &'a R,
         seqno: Option<SeqNo>,
         ephemeral: Option<Arc<Memtable>>,
-    ) -> impl DoubleEndedIterator<Item = crate::Result<KvPair>> + 'static {
+    ) -> impl DoubleEndedIterator<Item = crate::Result<KvPair>> + Send + 'static {
         self.create_internal_range(range, seqno, ephemeral)
             .map(|item| match item {
                 Ok(kv) => Ok((kv.key.user_key, kv.value)),
@@ -803,7 +785,7 @@ impl Tree {
     #[doc(hidden)]
     #[must_use]
     pub fn append_entry(&self, value: InternalValue) -> (u32, u32) {
-        let memtable_lock = self.active_memtable.read().expect("lock is poisoned");
+        let memtable_lock = self.active_memtable.read();
         memtable_lock.insert(value)
     }
 

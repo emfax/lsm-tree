@@ -7,7 +7,8 @@ use double_ended_peekable::{DoubleEndedPeekable, DoubleEndedPeekableExt};
 
 // TODO: refactor error handling because it's horrible
 
-pub type BoxedIterator<'a> = Box<dyn DoubleEndedIterator<Item = crate::Result<InternalValue>> + 'a>;
+pub type BoxedIterator<'a> =
+    Box<dyn DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send + 'a>;
 
 /// Merges multiple KV iterators
 pub struct Merger<'a> {

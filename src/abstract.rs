@@ -8,10 +8,8 @@ use crate::{
     ValueType,
 };
 use enum_dispatch::enum_dispatch;
-use std::{
-    ops::RangeBounds,
-    sync::{Arc, RwLockWriteGuard},
-};
+use parking_lot::RwLockWriteGuard;
+use std::{ops::RangeBounds, sync::Arc};
 
 pub type RangeItem = crate::Result<KvPair>;
 
@@ -288,7 +286,7 @@ pub trait AbstractTree {
     /// # Ok::<(), lsm_tree::Error>(())
     /// ```
     #[must_use]
-    fn iter(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + 'static> {
+    fn iter(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + Send + 'static> {
         self.range::<UserKey, _>(..)
     }
 
@@ -311,7 +309,7 @@ pub trait AbstractTree {
     /// #
     /// # Ok::<(), lsm_tree::Error>(())
     /// ```
-    fn keys(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<UserKey>> + 'static>;
+    fn keys(&self) -> Box<dyn DoubleEndedIterator<Item = crate::Result<UserKey>> + Send + 'static>;
 
     /// Returns an iterator that scans through the entire tree, returning values only.
     ///
@@ -397,7 +395,7 @@ pub trait AbstractTree {
     fn range<K: AsRef<[u8]>, R: RangeBounds<K>>(
         &self,
         range: R,
-    ) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + 'static>;
+    ) -> Box<dyn DoubleEndedIterator<Item = crate::Result<KvPair>> + Send + 'static>;
 
     /// Returns an iterator over a prefixed set of items.
     ///

@@ -14,7 +14,7 @@ use crate::{
     value::{SeqNo, UserKey},
     InternalValue,
 };
-use guardian::ArcRwLockReadGuardian;
+use parking_lot::{ArcRwLockReadGuard, RawRwLock};
 use self_cell::self_cell;
 use std::{ops::Bound, sync::Arc};
 
@@ -49,12 +49,12 @@ pub fn prefix_to_range(prefix: &[u8]) -> (Bound<UserKey>, Bound<UserKey>) {
 }
 
 pub struct MemtableLockGuard {
-    pub(crate) active: ArcRwLockReadGuardian<Memtable>,
-    pub(crate) sealed: ArcRwLockReadGuardian<SealedMemtables>,
+    pub(crate) active: ArcRwLockReadGuard<RawRwLock, Memtable>,
+    pub(crate) sealed: ArcRwLockReadGuard<RawRwLock, SealedMemtables>,
     pub(crate) ephemeral: Option<Arc<Memtable>>,
 }
 
-type BoxedMerge<'a> = Box<dyn DoubleEndedIterator<Item = crate::Result<InternalValue>> + 'a>;
+type BoxedMerge<'a> = Box<dyn DoubleEndedIterator<Item = crate::Result<InternalValue>> + Send + 'a>;
 
 self_cell!(
     pub struct TreeIter {
@@ -132,7 +132,7 @@ impl TreeIter {
         guard: MemtableLockGuard,
         bounds: (Bound<UserKey>, Bound<UserKey>),
         seqno: Option<SeqNo>,
-        level_manifest: ArcRwLockReadGuardian<LevelManifest>,
+        level_manifest: ArcRwLockReadGuard<RawRwLock, LevelManifest>,
     ) -> Self {
         Self::new(guard, |lock| {
             let lo = match &bounds.0 {

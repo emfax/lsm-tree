@@ -3,7 +3,8 @@
 // (found in the LICENSE-* files in the repository)
 
 use crate::{blob_tree::value::MaybeInlineValue, coding::Decode, Memtable};
-use std::{io::Cursor, sync::RwLockWriteGuard};
+use parking_lot::RwLockWriteGuard;
+use std::io::Cursor;
 use value_log::ValueHandle;
 
 #[allow(clippy::module_name_repetitions)]

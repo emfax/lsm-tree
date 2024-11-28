@@ -6,7 +6,7 @@ use crate::{
     blob_tree::value::MaybeInlineValue, coding::Encode, value::InternalValue, Memtable, SeqNo,
     UserKey,
 };
-use std::sync::RwLockWriteGuard;
+use parking_lot::RwLockWriteGuard;
 use value_log::ValueHandle;
 
 #[allow(clippy::module_name_repetitions)]
