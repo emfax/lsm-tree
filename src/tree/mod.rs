@@ -67,7 +67,6 @@ impl AbstractTree for Tree {
     fn bloom_filter_size(&self) -> usize {
         self.levels
             .read()
-            .expect("lock is poisoned")
             .iter()
             .map(|x| x.bloom_filter_size())
             .sum()
